@@ -1,0 +1,31 @@
+name: Weverse 补货监控
+
+on:
+  # 每 5 分钟自动检查一次 (注意: GitHub Actions 使用 UTC 时区)
+  schedule:
+    - cron: '*/5 * * * *'
+  # 支持手动触发(在 Actions 页面点 "Run workflow")
+  workflow_dispatch:
+
+jobs:
+  check-stock:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout 代码
+        uses: actions/checkout@v4
+      
+      - name: 设置 Python 环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+      
+      - name: 检查商品库存状态
+        env:
+          # 这些值从 GitHub Secrets 读取
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+        run: python weverse_monitor.py --email
