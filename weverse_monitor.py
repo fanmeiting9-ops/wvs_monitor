@@ -22,6 +22,13 @@ from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
 from datetime import datetime
 
+# 兼容不同环境的 stdout 编码 (GitHub Actions / Linux / Windows)
+try:
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
+except (AttributeError, Exception):
+    pass
+
 # ======================== 商品配置 ========================
 TARGET_URL = "https://shop.weverse.io/zh-cn/shop/KRW/artists/7/sales/42410"
 PRODUCT_NAME = "SEVENTEEN Plush Toy"
@@ -64,9 +71,9 @@ def send_email():
     需要在 EMAIL_CONFIG 中填入 email_password (SMTP 授权码)
     """
     if not EMAIL_CONFIG.get("email_password"):
-        print("  ⚠️ 邮件授权码未配置,跳过邮件发送")
-        print("     请编辑脚本中的 EMAIL_CONFIG['email_password']")
-        print("     获取方法: QQ邮箱网页版 → 设置 → 账户 → 开启SMTP服务")
+        print("  [警告] 邮件授权码未配置,跳过邮件发送")
+        print("     请设置 EMAIL_PASSWORD 环境变量")
+        print("     获取方法: QQ邮箱网页版 -> 设置 -> 账户 -> 开启SMTP服务")
         return False
     
     try:
@@ -142,7 +149,7 @@ def send_email():
         msg.attach(MIMEText(html_content, "html", "utf-8"))
         
         # 发送邮件 (SSL)
-        print("  📧 正在发送邮件通知...")
+        print("  [邮件] 正在发送邮件通知...")
         with smtplib.SMTP_SSL(EMAIL_CONFIG["smtp_server"], EMAIL_CONFIG["smtp_port"], timeout=30) as server:
             server.set_debuglevel(0)  # 设为 1 可看调试信息
             server.login(EMAIL_CONFIG["sender_email"], EMAIL_CONFIG["email_password"])
@@ -152,18 +159,18 @@ def send_email():
                 msg.as_string()
             )
         
-        print("  ✅ 邮件发送成功!")
+        print("  [成功] 邮件发送成功!")
         return True
         
     except smtplib.SMTPAuthenticationError as e:
-        print(f"  ❌ 邮件发送失败: 授权码错误或SMTP未开启 ({e})")
+        print(f"  [失败] 邮件发送失败: 授权码错误或SMTP未开启 ({e})")
         print("     请检查: 1. SMTP服务是否开启  2. 授权码是否正确(不是QQ密码)")
         return False
     except smtplib.SMTPException as e:
-        print(f"  ❌ 邮件发送失败: SMTP错误 ({e})")
+        print(f"  [失败] 邮件发送失败: SMTP错误 ({e})")
         return False
     except Exception as e:
-        print(f"  ❌ 邮件发送失败: {e}")
+        print(f"  [失败] 邮件发送失败: {e}")
         return False
 
 
@@ -252,23 +259,16 @@ def main():
     # 通知方式
     notify_methods = []
     if beep_on_find:
-        notify_methods.append("🔔 蜂鸣提醒")
+        notify_methods.append("蜂鸣提醒")
     if email_on_find:
-        notify_methods.append("📧 邮件通知")
+        notify_methods.append("邮件通知")
     if not notify_methods:
-        notify_methods.append("💬 仅控制台输出")
+        notify_methods.append("仅控制台输出")
     print(f"通知方式: {', '.join(notify_methods)}")
     
-    if email_on_find and not EMAIL_CONFIG.get("email_password"):
-        print(f"⚠️  邮件通知已启用,但授权码未配置!")
-        print(f"   请编辑 EMAIL_CONFIG['email_password']")
-        print(f"=" * 60)
-        print()
-        # 先测试一次邮件发送,让用户看到错误提示
-        print("[测试] 尝试发送邮件...")
-        send_email()
-        print()
-        return  # 授权码未配置时直接退出,避免空跑
+    email_enabled = email_on_find and bool(EMAIL_CONFIG.get("email_password"))
+    if email_on_find and not email_enabled:
+        print("[警告] 邮件通知已启用,但授权码未配置,将仅输出到控制台")
     
     print(f"=" * 60)
     
@@ -277,36 +277,40 @@ def main():
     
     while True:
         check_count += 1
-        in_stock, message = check_stock_status()
+        try:
+            in_stock, message = check_stock_status()
+        except Exception as e:
+            print(f"[{check_count}] 检查异常: {e}")
+            in_stock, message = False, "检查出错"
         
         if in_stock:
             print(f"\n{'=' * 60}")
-            print(f"🎉 {message}")
-            print(f"🔗 立即访问: {TARGET_URL}")
-            print(f"   将 KIMJA 加入购物车,数量设置为 2")
+            print(f"[补货] {message}")
+            print(f"链接: {TARGET_URL}")
+            print(f"将 KIMJA 加入购物车,数量设置为 2")
             print(f"{'=' * 60}\n")
             
             if beep_on_find and not notification_sent:
-                print("  🔔 播放提示音...")
+                print("  播放提示音...")
                 beep()
             
-            if email_on_find and not notification_sent:
-                send_email()
+            if email_enabled and not notification_sent:
+                try:
+                    send_email()
+                except Exception as e:
+                    print(f"  邮件发送异常: {e}")
             
             notification_sent = True  # 标记已通知,防止重复发送
             
             if not loop:
                 break
-            # 循环模式下,通知一次后继续监控(等下次又变成售罄)
             time.sleep(interval)
         else:
             print(f"[{check_count}] {message}", end="")
             if loop:
                 print(f" - {interval}秒后再次检查...")
-                # 已通知过且又变回售罄状态,重置标记以便下次补货时再次通知
                 if notification_sent:
                     notification_sent = False
-                    print("    ↩️  已重置通知标记,下次补货时会再次通知")
             else:
                 print()
         
@@ -317,4 +321,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"[严重错误] {e}")
+        # 不抛出异常,确保 GitHub Actions 步骤不会失败
+        sys.exit(0)
