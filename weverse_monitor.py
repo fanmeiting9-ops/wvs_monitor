@@ -35,13 +35,18 @@ PRODUCT_NAME = "SEVENTEEN Plush Toy"
 
 # ======================== 邮件配置 ========================
 # 敏感信息优先从环境变量读取(GitHub Actions Secrets),本地也可直接填写
+# 注意: os.environ.get 的默认值只在变量不存在时生效,变量为空字符串时仍返回空字符串
+def _get_env(key, default=""):
+    val = os.environ.get(key, default)
+    return val if val else default
+
 EMAIL_CONFIG = {
-    "smtp_server": os.environ.get("SMTP_SERVER", "smtp.qq.com"),
-    "smtp_port": int(os.environ.get("SMTP_PORT", "465")),
-    "sender_email": os.environ.get("SENDER_EMAIL", "2910233855@qq.com"),
-    "sender_name": os.environ.get("SENDER_NAME", "Weverse补货监控"),
-    "email_password": os.environ.get("EMAIL_PASSWORD", ""),  # QQ邮箱 SMTP 授权码
-    "receiver_email": os.environ.get("RECEIVER_EMAIL", "2910233855@qq.com"),
+    "smtp_server": _get_env("SMTP_SERVER", "smtp.qq.com"),
+    "smtp_port": int(_get_env("SMTP_PORT", "465")),
+    "sender_email": _get_env("SENDER_EMAIL", "2910233855@qq.com"),
+    "sender_name": _get_env("SENDER_NAME", "Weverse补货监控"),
+    "email_password": _get_env("EMAIL_PASSWORD", ""),  # QQ邮箱 SMTP 授权码
+    "receiver_email": _get_env("RECEIVER_EMAIL", "2910233855@qq.com"),
 }
 # ==========================================================
 
