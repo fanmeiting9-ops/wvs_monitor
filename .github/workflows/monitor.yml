@@ -28,4 +28,5 @@ jobs:
           RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
           SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
           SMTP_PORT: ${{ secrets.SMTP_PORT }}
-        run: python weverse_monitor.py --email
+          PYTHONIOENCODING: utf-8
+        run: python -u weverse_monitor.py --email
